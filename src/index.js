@@ -198,6 +198,18 @@ async function tgCall(method, payload) {
 
 async function sendMainMenu(chatId, tgUser) {
   const boot = bootstrapUser(tgUser);
+  const webApp = new URL(webAppUrl);
+  webApp.searchParams.set("tgId", String(tgUser.id));
+  if (tgUser.first_name) {
+    webApp.searchParams.set("first_name", tgUser.first_name);
+  }
+  if (tgUser.last_name) {
+    webApp.searchParams.set("last_name", tgUser.last_name);
+  }
+  if (tgUser.username) {
+    webApp.searchParams.set("username", tgUser.username);
+  }
+
   const text =
     `Weekly Collaborative Planner\n\n` +
     `Hello, ${boot.user.display_name}.\n` +
@@ -210,7 +222,7 @@ async function sendMainMenu(chatId, tgUser) {
     chat_id: chatId,
     text,
     reply_markup: {
-      keyboard: [[{ text: "Open Weekly Planner", web_app: { url: webAppUrl } }]],
+      keyboard: [[{ text: "Open Weekly Planner", web_app: { url: webApp.toString() } }]],
       resize_keyboard: true,
       is_persistent: true
     }
