@@ -19,6 +19,8 @@ import { verifyTelegramInitData } from "./telegramAuth.js";
 const token = process.env.BOT_TOKEN;
 const webAppUrl = process.env.BOT_WEBAPP_URL;
 const port = Number(process.env.PORT || 3000);
+const allowUnverifiedUser =
+  String(process.env.ALLOW_UNVERIFIED_TELEGRAM_USER || "").toLowerCase() === "true";
 
 if (!token) {
   throw new Error("Missing BOT_TOKEN in environment.");
@@ -43,6 +45,16 @@ app.get("/health", (_req, res) => {
 });
 
 function readTelegramUser(req) {
+  const bodyUser = req.body?.telegramUser;
+  if (allowUnverifiedUser && bodyUser?.id) {
+    return {
+      id: String(bodyUser.id),
+      username: bodyUser.username || null,
+      first_name: bodyUser.first_name || "",
+      last_name: bodyUser.last_name || ""
+    };
+  }
+
   const initData = String(req.body?.initData || req.header("x-telegram-init-data") || "");
   const verified = verifyTelegramInitData(initData, token);
   if (verified.ok) {
@@ -55,7 +67,6 @@ function readTelegramUser(req) {
   }
 
   if (process.env.NODE_ENV === "development") {
-    const bodyUser = req.body?.telegramUser;
     if (bodyUser?.id) {
       return {
         id: String(bodyUser.id),
