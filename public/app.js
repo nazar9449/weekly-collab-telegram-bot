@@ -94,7 +94,8 @@ async function api(path, options = {}) {
   const payload = options.body ? { ...options.body } : {};
   if (state.initDataRaw) {
     payload.initData = state.initDataRaw;
-  } else if (state.browserPreview && state.telegramUser?.id) {
+  }
+  if (state.telegramUser?.id) {
     payload.telegramUser = state.telegramUser;
   }
 
@@ -393,4 +394,3 @@ bootstrap().catch((error) => {
   console.error(error);
   showToast(error.message || "Failed to load app.");
 });
-
