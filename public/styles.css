@@ -98,6 +98,15 @@ body {
   box-shadow: 0 12px 24px rgba(34, 52, 86, 0.08);
 }
 
+.is-hidden {
+  display: none;
+}
+
+.onboarding {
+  border: 2px solid #b9d5ff;
+  background: linear-gradient(170deg, #ffffff 0%, #f3f8ff 100%);
+}
+
 .card h3 {
   margin: 0 0 8px;
 }

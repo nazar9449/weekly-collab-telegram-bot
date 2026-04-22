@@ -5,17 +5,25 @@ if (tg) {
 }
 
 const state = {
+  initDataRaw: "",
   telegramUser: null,
   tasks: [],
   user: null,
   weekKey: "",
   summary: null,
-  browserPreview: false
+  browserPreview: false,
+  needsOnboarding: false,
+  suggestedUsername: ""
 };
 
 const els = {
   weekChip: document.getElementById("weekChip"),
   heroMeta: document.getElementById("heroMeta"),
+  tabs: document.querySelector(".tabs"),
+  mainContent: document.getElementById("mainContent"),
+  onboardingCard: document.getElementById("onboardingCard"),
+  onboardingUsernameInput: document.getElementById("onboardingUsernameInput"),
+  onboardingSaveBtn: document.getElementById("onboardingSaveBtn"),
   statTotal: document.getElementById("statTotal"),
   statDone: document.getElementById("statDone"),
   statAvg: document.getElementById("statAvg"),
@@ -52,16 +60,19 @@ function parseUserFromQuery() {
 }
 
 function getTelegramUser() {
+  state.initDataRaw = tg?.initData || "";
   const liveUser = tg?.initDataUnsafe?.user;
   if (liveUser?.id) {
     state.browserPreview = false;
     return liveUser;
   }
+
   const queryUser = parseUserFromQuery();
   if (queryUser?.id) {
     state.browserPreview = true;
     return queryUser;
   }
+
   state.browserPreview = true;
   return {
     id: "local-preview-user",
@@ -80,18 +91,43 @@ function showToast(message) {
 }
 
 async function api(path, options = {}) {
+  const payload = options.body ? { ...options.body } : {};
+  if (state.initDataRaw) {
+    payload.initData = state.initDataRaw;
+  } else if (state.browserPreview && state.telegramUser?.id) {
+    payload.telegramUser = state.telegramUser;
+  }
+
   const response = await fetch(path, {
-    method: options.method || "GET",
-    headers: options.headers || {
+    method: options.method || "POST",
+    headers: {
       "Content-Type": "application/json"
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: JSON.stringify(payload)
   });
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.error || "Request failed");
   }
   return data;
+}
+
+function humanWeekLabel(weekKey) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(String(weekKey || ""));
+  if (!match) {
+    return `Week ${weekKey || "--"}`;
+  }
+  return `${match[1]} Week ${Number(match[2])}`;
+}
+
+function renderOnboarding() {
+  const show = Boolean(state.needsOnboarding);
+  els.onboardingCard.classList.toggle("is-hidden", !show);
+  els.tabs.classList.toggle("is-hidden", show);
+  els.mainContent.classList.toggle("is-hidden", show);
+  if (show) {
+    els.onboardingUsernameInput.value = state.suggestedUsername || state.user?.display_name || "";
+  }
 }
 
 function renderStats() {
@@ -101,14 +137,6 @@ function renderStats() {
   els.statAvg.textContent = `${summary.avg}%`;
   els.statBody.textContent = `${summary.bodyProgress || 0}%`;
   els.statTeam.textContent = `${summary.teamProgress || 0}%`;
-}
-
-function humanWeekLabel(weekKey) {
-  const match = /^(\d{4})-W(\d{2})$/.exec(String(weekKey || ""));
-  if (!match) {
-    return `Week ${weekKey || "--"}`;
-  }
-  return `${match[1]} Week ${Number(match[2])}`;
 }
 
 function renderHeader() {
@@ -164,16 +192,14 @@ function renderBodyPanel() {
 }
 
 async function refreshTeam() {
-  const data = await api("/api/team", {
-    method: "POST",
-    body: { telegramUser: state.telegramUser }
-  });
+  const data = await api("/api/team");
   const rows = data.rows || [];
   const teamProgress = rows.length
     ? Math.round(rows.reduce((sum, row) => sum + (Number(row.avg_progress) || 0), 0) / rows.length)
     : 0;
   state.summary = { ...(state.summary || {}), teamProgress };
   renderStats();
+
   if (!rows.length) {
     els.teamList.innerHTML = '<p class="muted">No team progress yet.</p>';
     return;
@@ -204,6 +230,7 @@ function recomputeSummary() {
 
 function rerenderAll() {
   recomputeSummary();
+  renderOnboarding();
   renderHeader();
   renderStats();
   renderTasks();
@@ -212,17 +239,37 @@ function rerenderAll() {
 
 async function bootstrap() {
   state.telegramUser = getTelegramUser();
-  const data = await api("/api/bootstrap", {
-    method: "POST",
-    body: { telegramUser: state.telegramUser }
-  });
+  const data = await api("/api/bootstrap");
   state.user = data.user;
   state.tasks = data.tasks || [];
   state.weekKey = data.weekKey;
   state.summary = data.summary;
+  state.needsOnboarding = Boolean(data.needsOnboarding);
+  state.suggestedUsername = data.suggestedUsername || "";
+  rerenderAll();
+  if (!state.needsOnboarding) {
+    await refreshTeam();
+  }
+}
+
+els.onboardingSaveBtn.addEventListener("click", async () => {
+  const username = els.onboardingUsernameInput.value.trim();
+  if (!username) {
+    showToast("Please enter a username.");
+    return;
+  }
+  const res = await api("/api/onboarding/username", {
+    body: { username }
+  });
+  state.user = res.data.user;
+  state.tasks = res.data.tasks || [];
+  state.weekKey = res.data.weekKey;
+  state.summary = res.data.summary;
+  state.needsOnboarding = false;
   rerenderAll();
   await refreshTeam();
-}
+  showToast("Welcome! Username saved.");
+});
 
 els.replacePlanBtn.addEventListener("click", async () => {
   const lines = els.planInput.value.split("\n").map((x) => x.trim()).filter(Boolean);
@@ -231,8 +278,7 @@ els.replacePlanBtn.addEventListener("click", async () => {
     return;
   }
   const res = await api("/api/tasks/replace-week", {
-    method: "POST",
-    body: { telegramUser: state.telegramUser, lines }
+    body: { lines }
   });
   state.tasks = res.tasks || [];
   rerenderAll();
@@ -247,8 +293,7 @@ els.addTaskBtn.addEventListener("click", async () => {
     return;
   }
   const res = await api("/api/tasks", {
-    method: "POST",
-    body: { telegramUser: state.telegramUser, title }
+    body: { title }
   });
   state.tasks = res.tasks || [];
   rerenderAll();
@@ -264,8 +309,7 @@ els.bodyProgressGrid.addEventListener("click", async (event) => {
   }
   const progress = Number(button.dataset.bodyProgress || 0);
   const res = await api("/api/body", {
-    method: "POST",
-    body: { telegramUser: state.telegramUser, progress }
+    body: { progress }
   });
   state.user = res.data.user;
   state.weekKey = res.data.weekKey;
@@ -289,8 +333,7 @@ els.tasksList.addEventListener("click", async (event) => {
 
   if (action === "delete") {
     const res = await api(`/api/tasks/${id}`, {
-      method: "DELETE",
-      body: { telegramUser: state.telegramUser }
+      method: "DELETE"
     });
     state.tasks = res.tasks || [];
     rerenderAll();
@@ -303,7 +346,7 @@ els.tasksList.addEventListener("click", async (event) => {
     const progress = Number(button.dataset.progress || 0);
     const res = await api(`/api/tasks/${id}/progress`, {
       method: "PATCH",
-      body: { telegramUser: state.telegramUser, progress }
+      body: { progress }
     });
     state.tasks = res.tasks || [];
     rerenderAll();
@@ -317,8 +360,7 @@ els.joinBtn.addEventListener("click", async () => {
     return;
   }
   const res = await api("/api/join", {
-    method: "POST",
-    body: { telegramUser: state.telegramUser, code }
+    body: { code }
   });
   await bootstrap();
   showToast(res.message || "Joined team.");
@@ -331,8 +373,7 @@ els.saveNameBtn.addEventListener("click", async () => {
     return;
   }
   await api("/api/name", {
-    method: "POST",
-    body: { telegramUser: state.telegramUser, name }
+    body: { name }
   });
   await bootstrap();
   showToast("Name updated.");
@@ -352,3 +393,4 @@ bootstrap().catch((error) => {
   console.error(error);
   showToast(error.message || "Failed to load app.");
 });
+

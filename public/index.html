@@ -21,6 +21,15 @@
         <p id="heroMeta">Loading your planner...</p>
       </header>
 
+      <section class="card onboarding is-hidden" id="onboardingCard">
+        <h3>Choose Your Username</h3>
+        <p class="muted">Set your display name for the team. You can change it later in Profile.</p>
+        <div class="inline-form">
+          <input id="onboardingUsernameInput" placeholder="Your username" />
+          <button class="primary" id="onboardingSaveBtn">Continue</button>
+        </div>
+      </section>
+
       <nav class="tabs">
         <button class="tab is-active" data-tab="tasks">Tasks</button>
         <button class="tab" data-tab="body">Body</button>
@@ -28,7 +37,7 @@
         <button class="tab" data-tab="settings">Profile</button>
       </nav>
 
-      <main>
+      <main id="mainContent">
         <section class="panel is-visible" id="panel-tasks">
           <div class="card stat-grid">
             <div>

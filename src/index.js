@@ -3,6 +3,7 @@ import express from "express";
 import {
   addTask,
   bootstrapUser,
+  completeOnboarding,
   deleteTask,
   ensureUser,
   getTeamRows,
@@ -13,6 +14,7 @@ import {
   updateTaskProgress
 } from "./repo.js";
 import { humanWeekLabel } from "./utils.js";
+import { verifyTelegramInitData } from "./telegramAuth.js";
 
 const token = process.env.BOT_TOKEN;
 const webAppUrl = process.env.BOT_WEBAPP_URL;
@@ -41,70 +43,103 @@ app.get("/health", (_req, res) => {
 });
 
 function readTelegramUser(req) {
-  const bodyUser = req.body?.telegramUser;
-  if (bodyUser?.id) {
+  const initData = String(req.body?.initData || req.header("x-telegram-init-data") || "");
+  const verified = verifyTelegramInitData(initData, token);
+  if (verified.ok) {
     return {
-      id: String(bodyUser.id),
-      username: bodyUser.username || null,
-      first_name: bodyUser.first_name || "",
-      last_name: bodyUser.last_name || ""
+      id: String(verified.user.id),
+      username: verified.user.username || null,
+      first_name: verified.user.first_name || "",
+      last_name: verified.user.last_name || ""
     };
   }
 
-  const headerId = req.header("x-telegram-id");
-  if (headerId) {
-    return {
-      id: String(headerId),
-      username: req.header("x-telegram-username") || null,
-      first_name: req.header("x-telegram-first-name") || "",
-      last_name: req.header("x-telegram-last-name") || ""
-    };
+  if (process.env.NODE_ENV === "development") {
+    const bodyUser = req.body?.telegramUser;
+    if (bodyUser?.id) {
+      return {
+        id: String(bodyUser.id),
+        username: bodyUser.username || null,
+        first_name: bodyUser.first_name || "",
+        last_name: bodyUser.last_name || ""
+      };
+    }
   }
 
+  if (verified.error) {
+    return { __error: verified.error };
+  }
   return null;
 }
 
 function withUser(req, res, next) {
   try {
     const tgUser = readTelegramUser(req);
+    if (tgUser?.__error) {
+      res.status(401).json({ error: tgUser.__error });
+      return;
+    }
     if (!tgUser?.id) {
       res.status(401).json({ error: "Telegram user context missing." });
       return;
     }
     req.tgUser = tgUser;
+    req.appUser = ensureUser(tgUser);
     next();
   } catch (error) {
     next(error);
   }
 }
 
+function requireOnboarding(req, res, next) {
+  if (Number(req.appUser?.onboarding_completed || 0) === 1) {
+    next();
+    return;
+  }
+  res.status(428).json({ error: "Complete onboarding first." });
+}
+
 app.post("/api/bootstrap", withUser, (req, res) => {
   const data = bootstrapUser(req.tgUser);
-  res.json(data);
+  const suggestedUsername = String(data.user.display_name || "User").trim().slice(0, 80);
+  res.json({
+    ...data,
+    needsOnboarding: Number(data.user.onboarding_completed || 0) !== 1,
+    suggestedUsername
+  });
 });
 
-app.post("/api/tasks/replace-week", withUser, (req, res) => {
+app.post("/api/onboarding/username", withUser, (req, res) => {
+  const data = completeOnboarding(req.tgUser, req.body?.username);
+  res.json({
+    ok: true,
+    data,
+    needsOnboarding: false
+  });
+});
+
+app.post("/api/tasks/replace-week", withUser, requireOnboarding, (req, res) => {
   const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
   const tasks = replaceWeekPlan(req.tgUser, lines);
   res.json({ ok: true, tasks });
 });
 
-app.post("/api/tasks", withUser, (req, res) => {
+app.post("/api/tasks", withUser, requireOnboarding, (req, res) => {
   const tasks = addTask(req.tgUser, req.body?.title || "");
   res.json({ ok: true, tasks });
 });
 
-app.patch("/api/tasks/:id/progress", withUser, (req, res) => {
+app.patch("/api/tasks/:id/progress", withUser, requireOnboarding, (req, res) => {
   const tasks = updateTaskProgress(req.tgUser, req.params.id, req.body?.progress);
   res.json({ ok: true, tasks });
 });
 
-app.delete("/api/tasks/:id", withUser, (req, res) => {
+app.delete("/api/tasks/:id", withUser, requireOnboarding, (req, res) => {
   const tasks = deleteTask(req.tgUser, req.params.id);
   res.json({ ok: true, tasks });
 });
 
-app.post("/api/join", withUser, (req, res) => {
+app.post("/api/join", withUser, requireOnboarding, (req, res) => {
   const result = joinByCode(req.tgUser, req.body?.code);
   if (!result.ok) {
     res.status(400).json(result);
@@ -113,11 +148,11 @@ app.post("/api/join", withUser, (req, res) => {
   res.json(result);
 });
 
-app.post("/api/team", withUser, (req, res) => {
+app.post("/api/team", withUser, requireOnboarding, (req, res) => {
   res.json(getTeamRows(req.tgUser));
 });
 
-app.post("/api/name", withUser, (req, res) => {
+app.post("/api/name", withUser, requireOnboarding, (req, res) => {
   const raw = String(req.body?.name || "").trim();
   if (!raw) {
     res.status(400).json({ error: "Name is required." });
@@ -127,7 +162,7 @@ app.post("/api/name", withUser, (req, res) => {
   res.json({ ok: true, user });
 });
 
-app.post("/api/body", withUser, (req, res) => {
+app.post("/api/body", withUser, requireOnboarding, (req, res) => {
   const data = setBodyProgress(req.tgUser, req.body?.progress);
   res.json({ ok: true, data });
 });

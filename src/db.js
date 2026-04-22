@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   display_name TEXT NOT NULL,
   team_id INTEGER NOT NULL,
   invite_code TEXT NOT NULL UNIQUE,
+  onboarding_completed INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   FOREIGN KEY (team_id) REFERENCES teams(id)
 );
@@ -51,3 +52,9 @@ CREATE TABLE IF NOT EXISTS body_metrics (
   FOREIGN KEY (user_tg_id) REFERENCES users(tg_id)
 );
 `);
+
+const userColumns = db.prepare("PRAGMA table_info(users)").all();
+const hasOnboardingColumn = userColumns.some((col) => col.name === "onboarding_completed");
+if (!hasOnboardingColumn) {
+  db.exec("ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0");
+}

@@ -24,6 +24,11 @@ const insertUserStmt = db.prepare(`
 `);
 const updateUserTeamStmt = db.prepare(`UPDATE users SET team_id = ? WHERE tg_id = ?`);
 const updateUserNameStmt = db.prepare(`UPDATE users SET display_name = ? WHERE tg_id = ?`);
+const completeOnboardingStmt = db.prepare(`
+  UPDATE users
+  SET display_name = ?, onboarding_completed = 1
+  WHERE tg_id = ?
+`);
 
 const insertTaskStmt = db.prepare(`
   INSERT INTO tasks (user_tg_id, week_key, title, progress, created_at, updated_at)
@@ -167,6 +172,16 @@ export function bootstrapUser(tgUser) {
 export function setDisplayName(tgId, name) {
   updateUserNameStmt.run(String(name).slice(0, 80), String(tgId));
   return findUserStmt.get(String(tgId));
+}
+
+export function completeOnboarding(tgUser, displayNameRaw) {
+  const user = ensureUser(tgUser);
+  const displayName = String(displayNameRaw || "").trim().slice(0, 80);
+  if (!displayName) {
+    throw new Error("Username is required.");
+  }
+  completeOnboardingStmt.run(displayName, user.tg_id);
+  return bootstrapUser(tgUser);
 }
 
 export function joinByCode(tgUser, inviteCodeRaw) {
