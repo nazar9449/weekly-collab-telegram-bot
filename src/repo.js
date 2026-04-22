@@ -64,6 +64,18 @@ const teamWeekRowsStmt = db.prepare(`
   GROUP BY u.tg_id
   ORDER BY avg_progress DESC, total_tasks DESC, u.display_name ASC
 `);
+const getBodyMetricStmt = db.prepare(`
+  SELECT progress
+  FROM body_metrics
+  WHERE user_tg_id = ? AND week_key = ?
+  LIMIT 1
+`);
+const upsertBodyMetricStmt = db.prepare(`
+  INSERT INTO body_metrics (user_tg_id, week_key, progress, updated_at)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT(user_tg_id, week_key)
+  DO UPDATE SET progress = excluded.progress, updated_at = excluded.updated_at
+`);
 
 function fullName(tgUser) {
   const first = tgUser?.first_name?.trim() ?? "";
@@ -124,10 +136,18 @@ export function bootstrapUser(tgUser) {
   const user = ensureUser(tgUser);
   const weekKey = currentWeekKey();
   const tasks = listWeekTasksStmt.all(user.tg_id, weekKey);
+  const bodyMetric = getBodyMetricStmt.get(user.tg_id, weekKey);
+  const bodyProgress = bodyMetric ? Number(bodyMetric.progress) || 0 : 0;
   const avg = tasks.length
     ? Math.round(tasks.reduce((sum, task) => sum + Number(task.progress), 0) / tasks.length)
     : 0;
   const done = tasks.filter((task) => Number(task.progress) >= 100).length;
+  const teamRows = teamWeekRowsStmt.all(weekKey, user.team_id);
+  const teamProgress = teamRows.length
+    ? Math.round(
+        teamRows.reduce((sum, row) => sum + (Number(row.avg_progress) || 0), 0) / teamRows.length
+      )
+    : 0;
 
   return {
     user,
@@ -137,6 +157,8 @@ export function bootstrapUser(tgUser) {
       total: tasks.length,
       done,
       avg,
+      bodyProgress,
+      teamProgress,
       avgBar: progressBar(avg)
     }
   };
@@ -217,3 +239,10 @@ export function getTeamRows(tgUser) {
   return { weekKey, teamName: user.team_name, rows };
 }
 
+export function setBodyProgress(tgUser, progressRaw) {
+  const user = ensureUser(tgUser);
+  const weekKey = currentWeekKey();
+  const progress = Math.max(0, Math.min(100, Number(progressRaw) || 0));
+  upsertBodyMetricStmt.run(user.tg_id, weekKey, progress, new Date().toISOString());
+  return bootstrapUser(tgUser);
+}

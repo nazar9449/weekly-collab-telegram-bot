@@ -1,9 +1,4 @@
 import dayjs from "dayjs";
-import weekOfYear from "dayjs/plugin/weekOfYear.js";
-import isoWeek from "dayjs/plugin/isoWeek.js";
-
-dayjs.extend(weekOfYear);
-dayjs.extend(isoWeek);
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -18,7 +13,21 @@ export function escapeHtml(text = "") {
 
 export function currentWeekKey() {
   const now = dayjs();
-  return `${now.isoWeekYear()}-W${String(now.isoWeek()).padStart(2, "0")}`;
+  const year = now.year();
+  const yearStart = dayjs(`${year}-01-01`);
+  const daysSinceStart = now.startOf("day").diff(yearStart.startOf("day"), "day");
+  const weekNumber = Math.floor(daysSinceStart / 7) + 1;
+  return `${year}-W${String(weekNumber).padStart(2, "0")}`;
+}
+
+export function humanWeekLabel(weekKey) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(String(weekKey || ""));
+  if (!match) {
+    return `Week ${weekKey || "--"}`;
+  }
+  const year = match[1];
+  const week = Number(match[2]);
+  return `${year} Week ${week}`;
 }
 
 export function randomCode(length = 8) {

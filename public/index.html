@@ -23,6 +23,7 @@
 
       <nav class="tabs">
         <button class="tab is-active" data-tab="tasks">Tasks</button>
+        <button class="tab" data-tab="body">Body</button>
         <button class="tab" data-tab="team">Team</button>
         <button class="tab" data-tab="settings">Profile</button>
       </nav>
@@ -42,10 +43,18 @@
               <div class="label">Avg progress</div>
               <div class="value" id="statAvg">0%</div>
             </div>
+            <div>
+              <div class="label">Body progress</div>
+              <div class="value" id="statBody">0%</div>
+            </div>
+            <div>
+              <div class="label">Team progress</div>
+              <div class="value" id="statTeam">0%</div>
+            </div>
           </div>
 
           <div class="card">
-            <h3>Replace Week Plan</h3>
+            <h3>Week Plan</h3>
             <p class="muted">One task per line. This replaces the current week.</p>
             <textarea id="planInput" rows="5" placeholder="Launch website&#10;3 workouts&#10;Design review"></textarea>
             <button class="primary" id="replacePlanBtn">Save Plan</button>
@@ -60,6 +69,20 @@
           </div>
 
           <div id="tasksList" class="task-list"></div>
+        </section>
+
+        <section class="panel" id="panel-body">
+          <div class="card">
+            <h3>Body Progress</h3>
+            <p class="muted">How are you doing physically this week?</p>
+            <div class="progress-grid" id="bodyProgressGrid">
+              <button class="chip" data-body-progress="0">0%</button>
+              <button class="chip" data-body-progress="25">25%</button>
+              <button class="chip" data-body-progress="50">50%</button>
+              <button class="chip" data-body-progress="75">75%</button>
+              <button class="chip" data-body-progress="100">100%</button>
+            </div>
+          </div>
         </section>
 
         <section class="panel" id="panel-team">
@@ -98,4 +121,3 @@
     <script type="module" src="/app/app.js"></script>
   </body>
 </html>
-

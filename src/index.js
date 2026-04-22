@@ -8,9 +8,11 @@ import {
   getTeamRows,
   joinByCode,
   replaceWeekPlan,
+  setBodyProgress,
   setDisplayName,
   updateTaskProgress
 } from "./repo.js";
+import { humanWeekLabel } from "./utils.js";
 
 const token = process.env.BOT_TOKEN;
 const webAppUrl = process.env.BOT_WEBAPP_URL;
@@ -125,6 +127,11 @@ app.post("/api/name", withUser, (req, res) => {
   res.json({ ok: true, user });
 });
 
+app.post("/api/body", withUser, (req, res) => {
+  const data = setBodyProgress(req.tgUser, req.body?.progress);
+  res.json({ ok: true, data });
+});
+
 app.use((error, _req, res, _next) => {
   console.error(error);
   res.status(500).json({ error: error.message || "Internal server error." });
@@ -150,7 +157,7 @@ async function sendMainMenu(chatId, tgUser) {
     `Hello, ${boot.user.display_name}.\n` +
     `Your invite code: ${boot.user.invite_code}\n` +
     `Team: ${boot.user.team_name}\n` +
-    `Week: ${boot.weekKey}\n\n` +
+    `Week: ${humanWeekLabel(boot.weekKey)}\n\n` +
     `Open the mini app to manage tasks with rich UI.`;
 
   await tgCall("sendMessage", {

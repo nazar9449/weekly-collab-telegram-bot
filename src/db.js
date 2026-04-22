@@ -40,4 +40,14 @@ CREATE TABLE IF NOT EXISTS tasks (
   updated_at TEXT NOT NULL,
   FOREIGN KEY (user_tg_id) REFERENCES users(tg_id)
 );
+
+CREATE TABLE IF NOT EXISTS body_metrics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_tg_id TEXT NOT NULL,
+  week_key TEXT NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  UNIQUE(user_tg_id, week_key),
+  FOREIGN KEY (user_tg_id) REFERENCES users(tg_id)
+);
 `);

@@ -9,7 +9,8 @@ const state = {
   tasks: [],
   user: null,
   weekKey: "",
-  summary: null
+  summary: null,
+  browserPreview: false
 };
 
 const els = {
@@ -18,11 +19,14 @@ const els = {
   statTotal: document.getElementById("statTotal"),
   statDone: document.getElementById("statDone"),
   statAvg: document.getElementById("statAvg"),
+  statBody: document.getElementById("statBody"),
+  statTeam: document.getElementById("statTeam"),
   planInput: document.getElementById("planInput"),
   replacePlanBtn: document.getElementById("replacePlanBtn"),
   quickTaskInput: document.getElementById("quickTaskInput"),
   addTaskBtn: document.getElementById("addTaskBtn"),
   tasksList: document.getElementById("tasksList"),
+  bodyProgressGrid: document.getElementById("bodyProgressGrid"),
   joinCodeInput: document.getElementById("joinCodeInput"),
   joinBtn: document.getElementById("joinBtn"),
   teamList: document.getElementById("teamList"),
@@ -50,9 +54,21 @@ function parseUserFromQuery() {
 function getTelegramUser() {
   const liveUser = tg?.initDataUnsafe?.user;
   if (liveUser?.id) {
+    state.browserPreview = false;
     return liveUser;
   }
-  return parseUserFromQuery();
+  const queryUser = parseUserFromQuery();
+  if (queryUser?.id) {
+    state.browserPreview = true;
+    return queryUser;
+  }
+  state.browserPreview = true;
+  return {
+    id: "local-preview-user",
+    first_name: "Local",
+    last_name: "Preview",
+    username: null
+  };
 }
 
 function showToast(message) {
@@ -79,20 +95,32 @@ async function api(path, options = {}) {
 }
 
 function renderStats() {
-  const summary = state.summary || { total: 0, done: 0, avg: 0 };
+  const summary = state.summary || { total: 0, done: 0, avg: 0, bodyProgress: 0, teamProgress: 0 };
   els.statTotal.textContent = summary.total;
   els.statDone.textContent = summary.done;
   els.statAvg.textContent = `${summary.avg}%`;
+  els.statBody.textContent = `${summary.bodyProgress || 0}%`;
+  els.statTeam.textContent = `${summary.teamProgress || 0}%`;
+}
+
+function humanWeekLabel(weekKey) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(String(weekKey || ""));
+  if (!match) {
+    return `Week ${weekKey || "--"}`;
+  }
+  return `${match[1]} Week ${Number(match[2])}`;
 }
 
 function renderHeader() {
   const user = state.user;
-  els.weekChip.textContent = `Week ${state.weekKey || "--"}`;
+  els.weekChip.textContent = humanWeekLabel(state.weekKey);
   if (!user) {
     els.heroMeta.textContent = "Loading your planner...";
     return;
   }
-  els.heroMeta.textContent = `${user.display_name} - ${user.team_name}`;
+  els.heroMeta.textContent = state.browserPreview
+    ? `${user.display_name} - ${user.team_name} (browser preview mode)`
+    : `${user.display_name} - ${user.team_name}`;
   els.profileInfo.textContent = `Team: ${user.team_name}`;
   els.inviteCode.textContent = user.invite_code;
   els.nameInput.value = user.display_name;
@@ -101,7 +129,7 @@ function renderHeader() {
 function renderTasks() {
   if (!state.tasks.length) {
     els.tasksList.innerHTML =
-      '<div class="card"><p class="muted">No tasks for this week yet. Add one above.</p></div>';
+      '<div class="card"><p class="muted">Nothing yet. Please add a new task.</p></div>';
     return;
   }
   els.tasksList.innerHTML = state.tasks
@@ -127,12 +155,25 @@ function renderTasks() {
     .join("");
 }
 
+function renderBodyPanel() {
+  const bodyProgress = Number(state.summary?.bodyProgress || 0);
+  els.bodyProgressGrid.querySelectorAll("[data-body-progress]").forEach((button) => {
+    const value = Number(button.dataset.bodyProgress || 0);
+    button.classList.toggle("is-active", value === bodyProgress);
+  });
+}
+
 async function refreshTeam() {
   const data = await api("/api/team", {
     method: "POST",
     body: { telegramUser: state.telegramUser }
   });
   const rows = data.rows || [];
+  const teamProgress = rows.length
+    ? Math.round(rows.reduce((sum, row) => sum + (Number(row.avg_progress) || 0), 0) / rows.length)
+    : 0;
+  state.summary = { ...(state.summary || {}), teamProgress };
+  renderStats();
   if (!rows.length) {
     els.teamList.innerHTML = '<p class="muted">No team progress yet.</p>';
     return;
@@ -151,7 +192,14 @@ function recomputeSummary() {
   const avg = total
     ? Math.round(state.tasks.reduce((sum, task) => sum + Number(task.progress), 0) / total)
     : 0;
-  state.summary = { total, done, avg };
+  state.summary = {
+    ...(state.summary || {}),
+    total,
+    done,
+    avg,
+    bodyProgress: Number(state.summary?.bodyProgress || 0),
+    teamProgress: Number(state.summary?.teamProgress || 0)
+  };
 }
 
 function rerenderAll() {
@@ -159,14 +207,11 @@ function rerenderAll() {
   renderHeader();
   renderStats();
   renderTasks();
+  renderBodyPanel();
 }
 
 async function bootstrap() {
   state.telegramUser = getTelegramUser();
-  if (!state.telegramUser?.id) {
-    showToast("Open this app from Telegram bot chat.");
-    return;
-  }
   const data = await api("/api/bootstrap", {
     method: "POST",
     body: { telegramUser: state.telegramUser }
@@ -210,6 +255,25 @@ els.addTaskBtn.addEventListener("click", async () => {
   await refreshTeam();
   els.quickTaskInput.value = "";
   showToast("Task added.");
+});
+
+els.bodyProgressGrid.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-body-progress]");
+  if (!button) {
+    return;
+  }
+  const progress = Number(button.dataset.bodyProgress || 0);
+  const res = await api("/api/body", {
+    method: "POST",
+    body: { telegramUser: state.telegramUser, progress }
+  });
+  state.user = res.data.user;
+  state.weekKey = res.data.weekKey;
+  state.tasks = res.data.tasks || state.tasks;
+  state.summary = res.data.summary || state.summary;
+  rerenderAll();
+  await refreshTeam();
+  showToast(`Body progress set to ${progress}%.`);
 });
 
 els.tasksList.addEventListener("click", async (event) => {
