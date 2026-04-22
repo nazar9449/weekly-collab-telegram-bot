@@ -1,0 +1,16 @@
+{
+  "name": "weekly-collab-telegram-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for weekly task planning and collaborative progress tracking",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2"
+  }
+}

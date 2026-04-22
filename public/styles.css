@@ -1,0 +1,276 @@
+:root {
+  --bg: #f3f6ff;
+  --bg-accent: radial-gradient(circle at 10% 0%, #d7ecff 0%, #f3f6ff 44%, #fff7ec 100%);
+  --card: #ffffff;
+  --text: #122239;
+  --muted: #5b6c83;
+  --line: #e4e9f5;
+  --primary: #1f7aff;
+  --primary-soft: #ddebff;
+  --success: #02a66f;
+  --danger: #d44545;
+  --shadow: 0 16px 36px rgba(27, 60, 110, 0.12);
+  font-family: "Outfit", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg-accent);
+  min-height: 100vh;
+}
+
+.app-shell {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 18px 14px 28px;
+}
+
+.hero {
+  background: linear-gradient(140deg, #0f6cff 0%, #0db3da 100%);
+  color: #fff;
+  padding: 18px;
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+}
+
+.hero h1 {
+  margin: 10px 0 6px;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.hero p {
+  margin: 0;
+  opacity: 0.9;
+}
+
+.hero-chip {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.tab {
+  flex: 1;
+  border: 0;
+  padding: 11px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--muted);
+  font-weight: 600;
+  box-shadow: 0 8px 18px rgba(24, 34, 59, 0.08);
+}
+
+.tab.is-active {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.panel {
+  display: none;
+  animation: reveal 260ms ease;
+}
+
+.panel.is-visible {
+  display: block;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 12px 24px rgba(34, 52, 86, 0.08);
+}
+
+.card h3 {
+  margin: 0 0 8px;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.value {
+  font-size: 21px;
+  font-weight: 700;
+}
+
+textarea,
+input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px;
+  background: #fdfdff;
+  font: inherit;
+  color: inherit;
+}
+
+.inline-form {
+  display: flex;
+  gap: 8px;
+}
+
+.primary {
+  border: 0;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.task-list {
+  display: grid;
+  gap: 10px;
+}
+
+.task-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+}
+
+.task-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.task-title {
+  font-weight: 600;
+}
+
+.task-progress {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  padding: 7px;
+  border-radius: 999px;
+  background: #f6f9ff;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.chip.is-active {
+  background: var(--primary-soft);
+  border-color: #a9cbff;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.danger-link {
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  font-weight: 600;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.team-list {
+  display: grid;
+  gap: 8px;
+}
+
+.team-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafcff;
+}
+
+.invite-code {
+  margin-top: 6px;
+  letter-spacing: 0.1em;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%) translateY(18px);
+  background: #1a2e4d;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: 220ms ease;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .inline-form {
+    flex-direction: column;
+  }
+
+  .progress-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
