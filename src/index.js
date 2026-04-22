@@ -30,6 +30,9 @@ app.use("/app", express.static("public", { extensions: ["html"] }));
 app.get("/app", (_req, res) => {
   res.sendFile("index.html", { root: "public" });
 });
+app.get("/", (_req, res) => {
+  res.redirect("/app");
+});
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
