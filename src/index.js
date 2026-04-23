@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import { initDb } from "./db.js";
 import {
   addTask,
   bootstrapUser,
@@ -83,7 +84,7 @@ function readTelegramUser(req) {
   return null;
 }
 
-function withUser(req, res, next) {
+async function withUser(req, res, next) {
   try {
     const tgUser = readTelegramUser(req);
     if (tgUser?.__error) {
@@ -95,7 +96,7 @@ function withUser(req, res, next) {
       return;
     }
     req.tgUser = tgUser;
-    req.appUser = ensureUser(tgUser);
+    req.appUser = await ensureUser(tgUser);
     next();
   } catch (error) {
     next(error);
@@ -110,8 +111,8 @@ function requireOnboarding(req, res, next) {
   res.status(428).json({ error: "Complete onboarding first." });
 }
 
-app.post("/api/bootstrap", withUser, (req, res) => {
-  const data = bootstrapUser(req.tgUser);
+app.post("/api/bootstrap", withUser, async (req, res) => {
+  const data = await bootstrapUser(req.tgUser);
   const suggestedUsername = String(data.user.display_name || "User").trim().slice(0, 80);
   res.json({
     ...data,
@@ -120,8 +121,8 @@ app.post("/api/bootstrap", withUser, (req, res) => {
   });
 });
 
-app.post("/api/onboarding/username", withUser, (req, res) => {
-  const data = completeOnboarding(req.tgUser, req.body?.username);
+app.post("/api/onboarding/username", withUser, async (req, res) => {
+  const data = await completeOnboarding(req.tgUser, req.body?.username);
   res.json({
     ok: true,
     data,
@@ -129,29 +130,29 @@ app.post("/api/onboarding/username", withUser, (req, res) => {
   });
 });
 
-app.post("/api/tasks/replace-week", withUser, requireOnboarding, (req, res) => {
+app.post("/api/tasks/replace-week", withUser, requireOnboarding, async (req, res) => {
   const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
-  const tasks = replaceWeekPlan(req.tgUser, lines);
+  const tasks = await replaceWeekPlan(req.tgUser, lines);
   res.json({ ok: true, tasks });
 });
 
-app.post("/api/tasks", withUser, requireOnboarding, (req, res) => {
-  const tasks = addTask(req.tgUser, req.body?.title || "");
+app.post("/api/tasks", withUser, requireOnboarding, async (req, res) => {
+  const tasks = await addTask(req.tgUser, req.body?.title || "");
   res.json({ ok: true, tasks });
 });
 
-app.patch("/api/tasks/:id/progress", withUser, requireOnboarding, (req, res) => {
-  const tasks = updateTaskProgress(req.tgUser, req.params.id, req.body?.progress);
+app.patch("/api/tasks/:id/progress", withUser, requireOnboarding, async (req, res) => {
+  const tasks = await updateTaskProgress(req.tgUser, req.params.id, req.body?.progress);
   res.json({ ok: true, tasks });
 });
 
-app.delete("/api/tasks/:id", withUser, requireOnboarding, (req, res) => {
-  const tasks = deleteTask(req.tgUser, req.params.id);
+app.delete("/api/tasks/:id", withUser, requireOnboarding, async (req, res) => {
+  const tasks = await deleteTask(req.tgUser, req.params.id);
   res.json({ ok: true, tasks });
 });
 
-app.post("/api/join", withUser, requireOnboarding, (req, res) => {
-  const result = joinByCode(req.tgUser, req.body?.code);
+app.post("/api/join", withUser, requireOnboarding, async (req, res) => {
+  const result = await joinByCode(req.tgUser, req.body?.code);
   if (!result.ok) {
     res.status(400).json(result);
     return;
@@ -159,22 +160,22 @@ app.post("/api/join", withUser, requireOnboarding, (req, res) => {
   res.json(result);
 });
 
-app.post("/api/team", withUser, requireOnboarding, (req, res) => {
-  res.json(getTeamRows(req.tgUser));
+app.post("/api/team", withUser, requireOnboarding, async (req, res) => {
+  res.json(await getTeamRows(req.tgUser));
 });
 
-app.post("/api/name", withUser, requireOnboarding, (req, res) => {
+app.post("/api/name", withUser, requireOnboarding, async (req, res) => {
   const raw = String(req.body?.name || "").trim();
   if (!raw) {
     res.status(400).json({ error: "Name is required." });
     return;
   }
-  const user = setDisplayName(req.tgUser.id, raw);
+  const user = await setDisplayName(req.tgUser.id, raw);
   res.json({ ok: true, user });
 });
 
-app.post("/api/body", withUser, requireOnboarding, (req, res) => {
-  const data = setBodyProgress(req.tgUser, req.body?.progress);
+app.post("/api/body", withUser, requireOnboarding, async (req, res) => {
+  const data = await setBodyProgress(req.tgUser, req.body?.progress);
   res.json({ ok: true, data });
 });
 
@@ -197,7 +198,7 @@ async function tgCall(method, payload) {
 }
 
 async function sendMainMenu(chatId, tgUser) {
-  const boot = bootstrapUser(tgUser);
+  const boot = await bootstrapUser(tgUser);
   const webApp = new URL(webAppUrl);
   webApp.searchParams.set("tgId", String(tgUser.id));
   if (tgUser.first_name) {
@@ -235,7 +236,7 @@ async function handleMessage(message) {
   }
   const chatId = message.chat.id;
   const tgUser = message.from;
-  ensureUser(tgUser);
+  await ensureUser(tgUser);
   const text = String(message.text || "").trim();
 
   if (text.startsWith("/start") || text === "Open Weekly Planner") {
@@ -244,7 +245,7 @@ async function handleMessage(message) {
   }
 
   if (text.startsWith("/mycode")) {
-    const boot = bootstrapUser(tgUser);
+    const boot = await bootstrapUser(tgUser);
     await tgCall("sendMessage", {
       chat_id: chatId,
       text: `Your invite code: ${boot.user.invite_code}`
@@ -254,7 +255,7 @@ async function handleMessage(message) {
 
   if (text.startsWith("/join")) {
     const code = text.replace(/^\/join(@\w+)?/i, "").trim();
-    const result = joinByCode(tgUser, code);
+    const result = await joinByCode(tgUser, code);
     await tgCall("sendMessage", {
       chat_id: chatId,
       text: result.ok ? result.message : result.error
@@ -305,12 +306,19 @@ async function runPolling() {
   }
 }
 
-app.listen(port, () => {
-  console.log(`Mini app server running at http://localhost:${port}/app`);
-  console.log(`Configured BOT_WEBAPP_URL: ${webAppUrl}`);
-});
+async function startApp() {
+  await initDb();
+  app.listen(port, () => {
+    console.log(`Mini app server running at http://localhost:${port}/app`);
+    console.log(`Configured BOT_WEBAPP_URL: ${webAppUrl}`);
+  });
+  runPolling().catch((error) => {
+    console.error("Fatal bot polling error:", error);
+    process.exit(1);
+  });
+}
 
-runPolling().catch((error) => {
-  console.error("Fatal bot polling error:", error);
+startApp().catch((error) => {
+  console.error("Startup failed:", error);
   process.exit(1);
 });

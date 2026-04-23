@@ -19,7 +19,7 @@ Users open a real in-telegram interface with tabs, cards, progress chips, and te
 
 - Node.js
 - Express
-- SQLite (`node:sqlite`)
+- PostgreSQL (`pg`, works with Supabase)
 - Telegram Bot API polling (no Telegraf)
 
 ## Environment
@@ -29,7 +29,10 @@ Create `.env`:
 ```env
 BOT_TOKEN=123456:abc-your-token
 BOT_WEBAPP_URL=https://your-public-domain.com/app
+DATABASE_URL=postgresql://postgres:password@db.xxx.supabase.co:5432/postgres
 PORT=3000
+NODE_ENV=production
+ALLOW_UNVERIFIED_TELEGRAM_USER=true
 ```
 
 `BOT_WEBAPP_URL` must be an HTTPS public URL.
@@ -68,8 +71,7 @@ You can also open in browser with manual user id:
 
 - `src/index.js` - Express API + Telegram polling loop
 - `src/repo.js` - data operations
-- `src/db.js` - sqlite setup
+- `src/db.js` - PostgreSQL pool + schema init
 - `public/index.html` - mini app UI
 - `public/styles.css` - visual system
 - `public/app.js` - frontend logic
-
