@@ -9,6 +9,7 @@ const state = {
   telegramUser: null,
   tasks: [],
   user: null,
+  buddy: null,
   weekKey: "",
   summary: null,
   browserPreview: false,
@@ -27,21 +28,25 @@ const els = {
   statTotal: document.getElementById("statTotal"),
   statDone: document.getElementById("statDone"),
   statAvg: document.getElementById("statAvg"),
-  statBody: document.getElementById("statBody"),
+  statBuddy: document.getElementById("statBuddy"),
   statTeam: document.getElementById("statTeam"),
   planInput: document.getElementById("planInput"),
   replacePlanBtn: document.getElementById("replacePlanBtn"),
   quickTaskInput: document.getElementById("quickTaskInput"),
   addTaskBtn: document.getElementById("addTaskBtn"),
   tasksList: document.getElementById("tasksList"),
-  bodyProgressGrid: document.getElementById("bodyProgressGrid"),
+  buddyCode: document.getElementById("buddyCode"),
+  buddyCodeInput: document.getElementById("buddyCodeInput"),
+  buddyJoinBtn: document.getElementById("buddyJoinBtn"),
+  buddyStatus: document.getElementById("buddyStatus"),
   joinCodeInput: document.getElementById("joinCodeInput"),
   joinBtn: document.getElementById("joinBtn"),
   teamList: document.getElementById("teamList"),
   profileInfo: document.getElementById("profileInfo"),
   nameInput: document.getElementById("nameInput"),
   saveNameBtn: document.getElementById("saveNameBtn"),
-  inviteCode: document.getElementById("inviteCode"),
+  teamCode: document.getElementById("teamCode"),
+  profileBuddyCode: document.getElementById("profileBuddyCode"),
   toast: document.getElementById("toast")
 };
 
@@ -132,11 +137,11 @@ function renderOnboarding() {
 }
 
 function renderStats() {
-  const summary = state.summary || { total: 0, done: 0, avg: 0, bodyProgress: 0, teamProgress: 0 };
+  const summary = state.summary || { total: 0, done: 0, avg: 0, buddyConnected: 0, teamProgress: 0 };
   els.statTotal.textContent = summary.total;
   els.statDone.textContent = summary.done;
   els.statAvg.textContent = `${summary.avg}%`;
-  els.statBody.textContent = `${summary.bodyProgress || 0}%`;
+  els.statBuddy.textContent = Number(summary.buddyConnected || 0) === 1 ? "Yes" : "No";
   els.statTeam.textContent = `${summary.teamProgress || 0}%`;
 }
 
@@ -150,8 +155,14 @@ function renderHeader() {
   els.heroMeta.textContent = state.browserPreview
     ? `${user.display_name} - ${user.team_name} (browser preview mode)`
     : `${user.display_name} - ${user.team_name}`;
-  els.profileInfo.textContent = `Team: ${user.team_name}`;
-  els.inviteCode.textContent = user.invite_code;
+  const buddyName = state.buddy?.display_name || "No buddy";
+  els.profileInfo.textContent = `Team: ${user.team_name} - Buddy: ${buddyName}`;
+  els.teamCode.textContent = user.invite_code;
+  els.buddyCode.textContent = user.buddy_code || "--------";
+  els.profileBuddyCode.textContent = user.buddy_code || "--------";
+  els.buddyStatus.textContent = state.buddy
+    ? `Buddy linked: ${state.buddy.display_name}`
+    : "No buddy linked yet.";
   els.nameInput.value = user.display_name;
 }
 
@@ -182,14 +193,6 @@ function renderTasks() {
       `;
     })
     .join("");
-}
-
-function renderBodyPanel() {
-  const bodyProgress = Number(state.summary?.bodyProgress || 0);
-  els.bodyProgressGrid.querySelectorAll("[data-body-progress]").forEach((button) => {
-    const value = Number(button.dataset.bodyProgress || 0);
-    button.classList.toggle("is-active", value === bodyProgress);
-  });
 }
 
 async function refreshTeam() {
@@ -224,7 +227,7 @@ function recomputeSummary() {
     total,
     done,
     avg,
-    bodyProgress: Number(state.summary?.bodyProgress || 0),
+    buddyConnected: Number(state.summary?.buddyConnected || 0),
     teamProgress: Number(state.summary?.teamProgress || 0)
   };
 }
@@ -235,7 +238,6 @@ function rerenderAll() {
   renderHeader();
   renderStats();
   renderTasks();
-  renderBodyPanel();
 }
 
 async function bootstrap() {
@@ -245,6 +247,7 @@ async function bootstrap() {
   state.tasks = data.tasks || [];
   state.weekKey = data.weekKey;
   state.summary = data.summary;
+  state.buddy = data.buddy || null;
   state.needsOnboarding = Boolean(data.needsOnboarding);
   state.suggestedUsername = data.suggestedUsername || "";
   rerenderAll();
@@ -266,6 +269,7 @@ els.onboardingSaveBtn.addEventListener("click", async () => {
   state.tasks = res.data.tasks || [];
   state.weekKey = res.data.weekKey;
   state.summary = res.data.summary;
+  state.buddy = res.data.buddy || null;
   state.needsOnboarding = false;
   rerenderAll();
   await refreshTeam();
@@ -303,22 +307,19 @@ els.addTaskBtn.addEventListener("click", async () => {
   showToast("Task added.");
 });
 
-els.bodyProgressGrid.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-body-progress]");
-  if (!button) {
+els.buddyJoinBtn.addEventListener("click", async () => {
+  const code = els.buddyCodeInput.value.trim().toUpperCase();
+  if (!code) {
     return;
   }
-  const progress = Number(button.dataset.bodyProgress || 0);
-  const res = await api("/api/body", {
-    body: { progress }
+  const res = await api("/api/buddy/join", {
+    body: { code }
   });
-  state.user = res.data.user;
-  state.weekKey = res.data.weekKey;
-  state.tasks = res.data.tasks || state.tasks;
-  state.summary = res.data.summary || state.summary;
+  await bootstrap();
+  els.buddyCodeInput.value = "";
   rerenderAll();
   await refreshTeam();
-  showToast(`Body progress set to ${progress}%.`);
+  showToast(res.message || "Buddy linked.");
 });
 
 els.tasksList.addEventListener("click", async (event) => {

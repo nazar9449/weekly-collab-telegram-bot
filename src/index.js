@@ -9,6 +9,7 @@ import {
   ensureUser,
   getTeamRows,
   joinByCode,
+  linkBuddyByCode,
   replaceWeekPlan,
   setBodyProgress,
   setDisplayName,
@@ -160,6 +161,15 @@ app.post("/api/join", withUser, requireOnboarding, async (req, res) => {
   res.json(result);
 });
 
+app.post("/api/buddy/join", withUser, requireOnboarding, async (req, res) => {
+  const result = await linkBuddyByCode(req.tgUser, req.body?.code);
+  if (!result.ok) {
+    res.status(400).json(result);
+    return;
+  }
+  res.json(result);
+});
+
 app.post("/api/team", withUser, requireOnboarding, async (req, res) => {
   res.json(await getTeamRows(req.tgUser));
 });
@@ -214,7 +224,8 @@ async function sendMainMenu(chatId, tgUser) {
   const text =
     `Weekly Collaborative Planner\n\n` +
     `Hello, ${boot.user.display_name}.\n` +
-    `Your invite code: ${boot.user.invite_code}\n` +
+    `Team code: ${boot.user.invite_code}\n` +
+    `Buddy code: ${boot.user.buddy_code || "N/A"}\n` +
     `Team: ${boot.user.team_name}\n` +
     `Week: ${humanWeekLabel(boot.weekKey)}\n\n` +
     `Open the mini app to manage tasks with rich UI.`;
@@ -248,7 +259,7 @@ async function handleMessage(message) {
     const boot = await bootstrapUser(tgUser);
     await tgCall("sendMessage", {
       chat_id: chatId,
-      text: `Your invite code: ${boot.user.invite_code}`
+      text: `Team code: ${boot.user.invite_code}\nBuddy code: ${boot.user.buddy_code || "N/A"}`
     });
     return;
   }

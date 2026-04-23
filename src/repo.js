@@ -34,8 +34,41 @@ async function findUserByInviteCode(inviteCode, runner = query) {
   return result.rows[0] || null;
 }
 
+async function findUserByBuddyCode(buddyCode, runner = query) {
+  const result = await runner(
+    `
+      SELECT u.*, t.name AS team_name, t.invite_code AS team_invite_code
+      FROM users u
+      JOIN teams t ON t.id = u.team_id
+      WHERE u.buddy_code = $1
+    `,
+    [String(buddyCode)]
+  );
+  return result.rows[0] || null;
+}
+
 async function findTeamByCode(inviteCode, runner = query) {
   const result = await runner(`SELECT id FROM teams WHERE invite_code = $1`, [String(inviteCode)]);
+  return result.rows[0] || null;
+}
+
+async function countTeamMembers(teamId, runner = query) {
+  const result = await runner(`SELECT COUNT(*)::int AS c FROM users WHERE team_id = $1`, [
+    Number(teamId)
+  ]);
+  return Number(result.rows[0]?.c || 0);
+}
+
+async function getBuddyProfile(tgId, runner = query) {
+  const result = await runner(
+    `
+      SELECT tg_id, display_name, username
+      FROM users
+      WHERE tg_id = $1
+      LIMIT 1
+    `,
+    [String(tgId)]
+  );
   return result.rows[0] || null;
 }
 
@@ -67,6 +100,7 @@ export async function ensureUser(tgUser) {
 
   const teamInviteCode = await generateUniqueCode((code) => findTeamByCode(code));
   const userInviteCode = await generateUniqueCode((code) => findUserByInviteCode(code));
+  const buddyCode = await generateUniqueCode((code) => findUserByBuddyCode(code));
 
   await withTransaction(async (client) => {
     const teamInsert = await client.query(
@@ -86,7 +120,7 @@ export async function ensureUser(tgUser) {
       [tgId, tgUser.username ?? null, displayName, teamInsert.rows[0].id, userInviteCode, now]
     );
   });
-
+  await query(`UPDATE users SET buddy_code = $1 WHERE tg_id = $2`, [buddyCode, tgId]);
   return findUserByTgId(tgId);
 }
 
@@ -136,6 +170,13 @@ async function getBodyMetric(userTgId, weekKey, runner = query) {
 
 export async function bootstrapUser(tgUser) {
   const user = await ensureUser(tgUser);
+
+  if (!user.buddy_code) {
+    const freshBuddyCode = await generateUniqueCode((code) => findUserByBuddyCode(code));
+    await query(`UPDATE users SET buddy_code = $1 WHERE tg_id = $2`, [freshBuddyCode, user.tg_id]);
+    return bootstrapUser(tgUser);
+  }
+
   const weekKey = currentWeekKey();
 
   const [tasks, bodyMetric, teamRows] = await Promise.all([
@@ -155,16 +196,20 @@ export async function bootstrapUser(tgUser) {
       )
     : 0;
 
+  const buddy = user.buddy_tg_id ? await getBuddyProfile(user.buddy_tg_id) : null;
+
   return {
     user,
     weekKey,
     tasks,
+    buddy,
     summary: {
       total: tasks.length,
       done,
       avg,
       bodyProgress,
       teamProgress,
+      buddyConnected: buddy ? 1 : 0,
       avgBar: progressBar(avg)
     }
   };
@@ -208,8 +253,57 @@ export async function joinByCode(tgUser, inviteCodeRaw) {
     return { ok: true, message: `You are already in team ${owner.team_name}.` };
   }
 
+  const targetTeamCount = await countTeamMembers(owner.team_id);
+  if (targetTeamCount >= 15) {
+    return { ok: false, error: "Team is full (max 15 users)." };
+  }
+
   await query(`UPDATE users SET team_id = $1 WHERE tg_id = $2`, [owner.team_id, user.tg_id]);
   return { ok: true, message: `Joined ${owner.team_name}.` };
+}
+
+export async function linkBuddyByCode(tgUser, buddyCodeRaw) {
+  const user = await ensureUser(tgUser);
+  const buddyCode = String(buddyCodeRaw || "").trim().toUpperCase();
+  if (!buddyCode) {
+    return { ok: false, error: "Buddy code is required." };
+  }
+  if (user.buddy_tg_id) {
+    return { ok: false, error: "You already have a buddy." };
+  }
+
+  const target = await findUserByBuddyCode(buddyCode);
+  if (!target) {
+    return { ok: false, error: "Buddy code not found." };
+  }
+  if (String(target.tg_id) === String(user.tg_id)) {
+    return { ok: false, error: "You cannot set yourself as buddy." };
+  }
+  if (target.buddy_tg_id) {
+    return { ok: false, error: "This user already has a buddy." };
+  }
+
+  await withTransaction(async (client) => {
+    const meLock = await client.query(
+      `SELECT tg_id, buddy_tg_id FROM users WHERE tg_id = $1 FOR UPDATE`,
+      [user.tg_id]
+    );
+    const targetLock = await client.query(
+      `SELECT tg_id, buddy_tg_id FROM users WHERE tg_id = $1 FOR UPDATE`,
+      [target.tg_id]
+    );
+    if (!meLock.rows[0] || !targetLock.rows[0]) {
+      throw new Error("Buddy users not found.");
+    }
+    if (meLock.rows[0].buddy_tg_id || targetLock.rows[0].buddy_tg_id) {
+      throw new Error("Buddy is already linked.");
+    }
+
+    await client.query(`UPDATE users SET buddy_tg_id = $1 WHERE tg_id = $2`, [target.tg_id, user.tg_id]);
+    await client.query(`UPDATE users SET buddy_tg_id = $1 WHERE tg_id = $2`, [user.tg_id, target.tg_id]);
+  });
+
+  return { ok: true, message: `Buddy linked with ${target.display_name}.` };
 }
 
 export async function replaceWeekPlan(tgUser, lines) {
@@ -317,4 +411,3 @@ export async function setBodyProgress(tgUser, progressRaw) {
 
   return bootstrapUser(tgUser);
 }
-

@@ -32,7 +32,7 @@
 
       <nav class="tabs">
         <button class="tab is-active" data-tab="tasks">Tasks</button>
-        <button class="tab" data-tab="body">Body</button>
+        <button class="tab" data-tab="buddy">Buddy</button>
         <button class="tab" data-tab="team">Team</button>
         <button class="tab" data-tab="settings">Profile</button>
       </nav>
@@ -53,8 +53,8 @@
               <div class="value" id="statAvg">0%</div>
             </div>
             <div>
-              <div class="label">Body progress</div>
-              <div class="value" id="statBody">0%</div>
+              <div class="label">Buddy</div>
+              <div class="value" id="statBuddy">No</div>
             </div>
             <div>
               <div class="label">Team progress</div>
@@ -80,17 +80,19 @@
           <div id="tasksList" class="task-list"></div>
         </section>
 
-        <section class="panel" id="panel-body">
+        <section class="panel" id="panel-buddy">
           <div class="card">
-            <h3>Body Progress</h3>
-            <p class="muted">How are you doing physically this week?</p>
-            <div class="progress-grid" id="bodyProgressGrid">
-              <button class="chip" data-body-progress="0">0%</button>
-              <button class="chip" data-body-progress="25">25%</button>
-              <button class="chip" data-body-progress="50">50%</button>
-              <button class="chip" data-body-progress="75">75%</button>
-              <button class="chip" data-body-progress="100">100%</button>
+            <h3>Buddy Code</h3>
+            <p class="muted">Each user can have only one buddy.</p>
+            <div class="invite-code" id="buddyCode">--------</div>
+          </div>
+          <div class="card">
+            <h3>Connect Buddy</h3>
+            <div class="inline-form">
+              <input id="buddyCodeInput" placeholder="Buddy code" />
+              <button class="primary" id="buddyJoinBtn">Connect</button>
             </div>
+            <p class="muted" id="buddyStatus">No buddy linked yet.</p>
           </div>
         </section>
 
@@ -118,9 +120,11 @@
             </div>
           </div>
           <div class="card">
-            <h3>Invite</h3>
-            <p>Your personal invite code:</p>
-            <div class="invite-code" id="inviteCode">--------</div>
+            <h3>Codes</h3>
+            <p>Team code:</p>
+            <div class="invite-code" id="teamCode">--------</div>
+            <p style="margin-top:10px;">Buddy code:</p>
+            <div class="invite-code" id="profileBuddyCode">--------</div>
           </div>
         </section>
       </main>

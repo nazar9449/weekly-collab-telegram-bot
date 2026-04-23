@@ -47,6 +47,8 @@ export async function initDb() {
       display_name TEXT NOT NULL,
       team_id INTEGER NOT NULL REFERENCES teams(id),
       invite_code TEXT NOT NULL UNIQUE,
+      buddy_code TEXT UNIQUE,
+      buddy_tg_id TEXT REFERENCES users(tg_id),
       onboarding_completed INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL
     );
@@ -70,5 +72,7 @@ export async function initDb() {
       UNIQUE(user_tg_id, week_key)
     );
   `);
-}
 
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS buddy_code TEXT UNIQUE`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS buddy_tg_id TEXT REFERENCES users(tg_id)`);
+}
